@@ -38,11 +38,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--ocr-lang",
         help="Idiomas do OCR separados por vírgula (ex.: pt,en)",
     )
+    parser.add_argument(
+        "--images",
+        action="store_true",
+        help="Extrai imagens do PDF para a pasta <nome>_images",
+    )
     args = parser.parse_args(argv)
     if args.stdout and is_batch_request(args.inputs):
         parser.error("--stdout não pode ser usado com várias entradas")
     if args.stdout and args.output:
         parser.error("--stdout não pode ser usado com -o/--output")
+    if args.stdout and args.images:
+        parser.error("--stdout não pode ser usado com --images")
     return args
 
 
@@ -50,7 +57,9 @@ def build_options(args: argparse.Namespace) -> ConversionOptions:
     languages = tuple(
         code.strip() for code in (args.ocr_lang or "").split(",") if code.strip()
     )
-    return ConversionOptions(ocr=args.ocr, ocr_languages=languages)
+    return ConversionOptions(
+        ocr=args.ocr, ocr_languages=languages, images=args.images
+    )
 
 
 def print_summary(results) -> None:

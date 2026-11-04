@@ -12,7 +12,17 @@ def build_pdf_pipeline_options(options: ConversionOptions):
     if options.ocr and options.ocr_languages:
         pipeline_options.ocr_options.lang = list(options.ocr_languages)
     pipeline_options.do_table_structure = True
+    if options.images:
+        pipeline_options.generate_picture_images = True
+        pipeline_options.images_scale = 2.0
     return pipeline_options
+
+
+def image_artifacts_dir(output_path: Path) -> Path:
+    stem = output_path.stem
+    if stem.startswith(".") and stem.endswith(".tmp"):
+        stem = stem[1:-4]
+    return output_path.with_name(f"{stem}_images")
 
 
 def empty_text_warning(text_count: int, options: ConversionOptions) -> str | None:
@@ -44,7 +54,16 @@ def build_converter(
             if "docling" not in state:
                 state["docling"] = create_document_converter(options)
             result = state["docling"].convert(str(input_path))
-            result.document.save_as_markdown(output_path)
+            if options.images:
+                from docling_core.types.doc import ImageRefMode
+
+                result.document.save_as_markdown(
+                    output_path,
+                    artifacts_dir=image_artifacts_dir(output_path),
+                    image_mode=ImageRefMode.REFERENCED,
+                )
+            else:
+                result.document.save_as_markdown(output_path)
             return empty_text_warning(len(result.document.texts), options)
         if "markitdown" not in state:
             from markitdown import MarkItDown
