@@ -31,7 +31,8 @@ def test_cli_parses_ocr_flags():
 
 
 def test_empty_text_warning_only_without_ocr():
-    assert "--ocr" in empty_text_warning(0, ConversionOptions())
+    expected = "Nenhum texto extraído. Tente novamente com --ocr --force."
+    assert empty_text_warning(0, ConversionOptions()) == expected
     assert empty_text_warning(0, ConversionOptions(ocr=True)) is None
     assert empty_text_warning(3, ConversionOptions()) is None
 
@@ -48,6 +49,14 @@ def test_artifacts_dir_ignores_temporary_name():
 
 def test_artifacts_dir_for_final_name():
     assert image_artifacts_dir(Path("out/a.md")) == Path("out/a_images")
+
+
+def test_artifacts_dir_for_extensionless_temporary_name():
+    assert image_artifacts_dir(Path("out/.semext.tmp")) == Path("out/semext_images")
+
+
+def test_artifacts_dir_for_dotted_temporary_name():
+    assert image_artifacts_dir(Path("out/.a.b.tmp.md")) == Path("out/a.b_images")
 
 
 def test_stdout_rejects_images():

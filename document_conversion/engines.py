@@ -21,16 +21,28 @@ def build_pdf_pipeline_options(options: ConversionOptions):
 
 
 def image_artifacts_dir(output_path: Path) -> Path:
-    stem = output_path.stem
-    if stem.startswith(".") and stem.endswith(".tmp"):
-        stem = stem[1:-4]
+    name = output_path.name.removeprefix(".")
+    head, marker, _ = name.rpartition(".tmp")
+    stem = head if marker else output_path.stem
     return output_path.with_name(f"{stem}_images")
 
 
 def empty_text_warning(text_count: int, options: ConversionOptions) -> str | None:
     if text_count == 0 and not options.ocr:
-        return "Nenhum texto extraído. Tente novamente com --ocr."
+        return "Nenhum texto extraído. Tente novamente com --ocr --force."
     return None
+
+
+def pdf_warning(result, options: ConversionOptions) -> str | None:
+    from docling.datamodel.base_models import ConversionStatus
+
+    partial = (
+        "Conversão parcial: algumas páginas podem ter falhado."
+        if result.status == ConversionStatus.PARTIAL_SUCCESS
+        else None
+    )
+    empty = empty_text_warning(len(result.document.texts), options)
+    return " ".join(filter(None, (partial, empty))) or None
 
 
 def save_document(document, output_path: Path, options: ConversionOptions) -> None:
@@ -80,7 +92,7 @@ def build_converter(
                 state["docling"] = create_document_converter(options)
             result = state["docling"].convert(str(input_path))
             save_document(result.document, output_path, options)
-            return empty_text_warning(len(result.document.texts), options)
+            return pdf_warning(result, options)
         if options.output_format != "markdown":
             raise ValueError(
                 f"O formato {options.output_format} só está disponível para PDFs"

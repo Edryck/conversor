@@ -1,7 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from docling.datamodel.base_models import ConversionStatus
 
 from document_conversion.engines import build_converter, save_document
 from document_conversion.options import ConversionOptions
@@ -42,3 +44,37 @@ def test_non_pdf_rejects_json(tmp_path):
     convert = build_converter(ConversionOptions(output_format="json"))
     with pytest.raises(ValueError, match="PDF"):
         convert(source, tmp_path / "data.json")
+
+
+def test_non_pdf_rejects_html(tmp_path):
+    source = tmp_path / "data.csv"
+    source.write_text("a\n1\n", encoding="utf-8")
+    convert = build_converter(ConversionOptions(output_format="html"))
+    with pytest.raises(ValueError, match="PDF"):
+        convert(source, tmp_path / "data.html")
+
+
+def fake_docling(monkeypatch, status, texts):
+    document = Mock(texts=texts)
+    docling = Mock()
+    docling.convert.return_value = SimpleNamespace(status=status, document=document)
+    monkeypatch.setattr(
+        "document_conversion.engines.create_document_converter",
+        lambda options: docling,
+    )
+
+
+PARTIAL = "Conversão parcial: algumas páginas podem ter falhado."
+EMPTY = "Nenhum texto extraído. Tente novamente com --ocr --force."
+
+
+@pytest.mark.parametrize("status, texts, expected", [
+    (ConversionStatus.PARTIAL_SUCCESS, ["t"], PARTIAL),
+    (ConversionStatus.PARTIAL_SUCCESS, [], f"{PARTIAL} {EMPTY}"),
+    (ConversionStatus.SUCCESS, [], EMPTY),
+    (ConversionStatus.SUCCESS, ["t"], None),
+])
+def test_pdf_warnings(monkeypatch, tmp_path, status, texts, expected):
+    fake_docling(monkeypatch, status, texts)
+    convert = build_converter(ConversionOptions())
+    assert convert(tmp_path / "a.pdf", tmp_path / "a.md") == expected

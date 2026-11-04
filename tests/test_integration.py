@@ -34,3 +34,17 @@ def test_pdf_formats(workspace, output_format, suffix):
     source = workspace / "sample.pdf"
     assert converter.main([str(source), "--format", output_format]) == 0
     assert "Texto de exemplo" in source.with_suffix(suffix).read_text(encoding="utf-8")
+
+
+def test_json_images_stay_embedded(workspace):
+    source = workspace / "sample.pdf"
+    assert converter.main([str(source), "--format", "json", "--images"]) == 0
+    assert "data:image/" in source.with_suffix(".json").read_text(encoding="utf-8")
+    assert not (workspace / "sample_images").exists()
+
+
+def test_extensionless_output_images_link_resolves(workspace):
+    target = workspace / "semext"
+    assert converter.main([str(workspace / "sample.pdf"), "-o", str(target), "--images"]) == 0
+    assert list((workspace / "semext_images").iterdir())
+    assert "](semext_images/" in target.read_text(encoding="utf-8")
