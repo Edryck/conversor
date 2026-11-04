@@ -12,6 +12,8 @@ def build_pdf_pipeline_options(options: ConversionOptions):
     if options.ocr and options.ocr_languages:
         pipeline_options.ocr_options.lang = list(options.ocr_languages)
     pipeline_options.do_table_structure = True
+    pipeline_options.do_formula_enrichment = options.formulas
+    pipeline_options.do_code_enrichment = options.code
     if options.images:
         pipeline_options.generate_picture_images = True
         pipeline_options.images_scale = 2.0

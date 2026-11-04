@@ -43,6 +43,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Extrai imagens do PDF para a pasta <nome>_images",
     )
+    parser.add_argument(
+        "--formulas",
+        action="store_true",
+        help="Enriquece fórmulas (baixa um modelo extra na primeira execução)",
+    )
+    parser.add_argument(
+        "--code",
+        action="store_true",
+        help="Enriquece blocos de código (baixa um modelo extra na primeira execução)",
+    )
     args = parser.parse_args(argv)
     if args.stdout and is_batch_request(args.inputs):
         parser.error("--stdout não pode ser usado com várias entradas")
@@ -58,7 +68,11 @@ def build_options(args: argparse.Namespace) -> ConversionOptions:
         code.strip() for code in (args.ocr_lang or "").split(",") if code.strip()
     )
     return ConversionOptions(
-        ocr=args.ocr, ocr_languages=languages, images=args.images
+        ocr=args.ocr,
+        ocr_languages=languages,
+        images=args.images,
+        formulas=args.formulas,
+        code=args.code,
     )
 
 

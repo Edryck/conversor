@@ -51,3 +51,10 @@ def test_stdout_rejects_images():
     with pytest.raises(SystemExit) as error:
         converter.main(["a.pdf", "--stdout", "--images"])
     assert error.value.code == 2
+
+
+def test_enrichment_flags_reach_pipeline():
+    args = converter.parse_args(["a.pdf", "--formulas", "--code"])
+    pipeline = build_pdf_pipeline_options(converter.build_options(args))
+    assert pipeline.do_formula_enrichment is True
+    assert pipeline.do_code_enrichment is True
