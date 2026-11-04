@@ -8,9 +8,17 @@ def build_pdf_pipeline_options(options: ConversionOptions):
     from docling.datamodel.pipeline_options import PdfPipelineOptions
 
     pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = True
+    pipeline_options.do_ocr = options.ocr
+    if options.ocr and options.ocr_languages:
+        pipeline_options.ocr_options.lang = list(options.ocr_languages)
     pipeline_options.do_table_structure = True
     return pipeline_options
+
+
+def empty_text_warning(text_count: int, options: ConversionOptions) -> str | None:
+    if text_count == 0 and not options.ocr:
+        return "Nenhum texto extraído. Tente novamente com --ocr."
+    return None
 
 
 def create_document_converter(options: ConversionOptions):
@@ -37,7 +45,7 @@ def build_converter(
                 state["docling"] = create_document_converter(options)
             result = state["docling"].convert(str(input_path))
             result.document.save_as_markdown(output_path)
-            return None
+            return empty_text_warning(len(result.document.texts), options)
         if "markitdown" not in state:
             from markitdown import MarkItDown
 

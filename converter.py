@@ -31,6 +31,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--force", action="store_true", help="Reconverte mesmo se a saída estiver atualizada"
     )
+    parser.add_argument(
+        "--ocr", action="store_true", help="Ativa OCR para PDFs escaneados"
+    )
+    parser.add_argument(
+        "--ocr-lang",
+        help="Idiomas do OCR separados por vírgula (ex.: pt,en)",
+    )
     args = parser.parse_args(argv)
     if args.stdout and is_batch_request(args.inputs):
         parser.error("--stdout não pode ser usado com várias entradas")
@@ -40,7 +47,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def build_options(args: argparse.Namespace) -> ConversionOptions:
-    return ConversionOptions()
+    languages = tuple(
+        code.strip() for code in (args.ocr_lang or "").split(",") if code.strip()
+    )
+    return ConversionOptions(ocr=args.ocr, ocr_languages=languages)
 
 
 def print_summary(results) -> None:
