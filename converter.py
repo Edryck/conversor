@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -24,7 +25,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "-o",
         "--output",
-        help="Arquivo de saída (entrada única) ou pasta de saída (lote)",
+        help="Arquivo de saída (entrada única) ou pasta de saída (lote, pasta existente ou caminho terminado em /)",
     )
     parser.add_argument(
         "--stdout", action="store_true", help="Imprime o resultado na saída padrão"
@@ -42,7 +43,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--images",
         action="store_true",
-        help="Extrai imagens do PDF para a pasta <nome>_images",
+        help="Extrai imagens do PDF para a pasta <nome>_images (em --format json as imagens ficam embutidas no arquivo)",
     )
     parser.add_argument(
         "--formulas",
@@ -85,6 +86,12 @@ def build_options(args: argparse.Namespace) -> ConversionOptions:
     )
 
 
+def is_output_directory(output: str | None) -> bool:
+    if not output:
+        return False
+    return output.endswith(os.sep) or Path(output).is_dir()
+
+
 def print_summary(results) -> None:
     converted = sum(1 for result in results if result.status == "converted")
     skipped = sum(1 for result in results if result.status == "skipped")
@@ -93,6 +100,8 @@ def print_summary(results) -> None:
         f"Convertidos: {converted} | Pulados: {skipped} | Falhas: {len(failed)}",
         file=sys.stderr,
     )
+    if skipped:
+        print("Use --force para reconverter ou aplicar novas opções.", file=sys.stderr)
     for result in failed:
         print(f"Falha: {result.input_path}: {result.message}", file=sys.stderr)
     for result in results:
@@ -133,7 +142,12 @@ def main(argv: list[str] | None = None) -> int:
 
     output_arg = Path(args.output) if args.output else None
     results = run_batch(
-        inputs, convert, output_arg, batch, options.output_format, args.force
+        inputs,
+        convert,
+        output_arg,
+        batch or is_output_directory(args.output),
+        options.output_format,
+        args.force,
     )
     print_summary(results)
     return 1 if any(result.status == "failed" for result in results) else 0

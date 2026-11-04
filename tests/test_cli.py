@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 import converter
@@ -93,3 +95,36 @@ def test_stdout_uses_format_suffix(tmp_path, monkeypatch, capsys):
     assert converter.main([str(path), "--format", "html", "--stdout"]) == 0
     assert seen == [".html"]
     assert "<p>ok</p>" in capsys.readouterr().out
+
+
+def test_existing_folder_output_with_single_input(source, tmp_path):
+    folder = tmp_path / "saida"
+    folder.mkdir()
+    assert converter.main([str(source), "-o", str(folder)]) == 0
+    assert (folder / "a.md").read_text(encoding="utf-8") == "resultado"
+
+
+def test_trailing_separator_output_with_single_input(source, tmp_path):
+    folder = tmp_path / "novo"
+    assert converter.main([str(source), "-o", f"{folder}{os.sep}"]) == 0
+    assert (folder / "a.md").read_text(encoding="utf-8") == "resultado"
+
+
+def test_file_output_with_single_input_stays_a_file(source, tmp_path):
+    target = tmp_path / "x.md"
+    assert converter.main([str(source), "-o", str(target)]) == 0
+    assert target.read_text(encoding="utf-8") == "resultado"
+
+
+def test_skipped_summary_suggests_force(source, capsys):
+    assert converter.main([str(source)]) == 0
+    assert "--force" not in capsys.readouterr().err
+    assert converter.main([str(source)]) == 0
+    assert "Use --force para reconverter ou aplicar novas opções." in capsys.readouterr().err
+
+
+def test_images_help_states_json_exception(capsys):
+    with pytest.raises(SystemExit):
+        converter.parse_args(["--help"])
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "--format json as imagens ficam embutidas" in help_text
