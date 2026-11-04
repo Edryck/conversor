@@ -41,12 +41,12 @@ python converter.py <arquivo-de-entrada> --stdout
 | Argumento | Obrigatório | Descrição |
 | --- | --- | --- |
 | `inputs` | Sim | Arquivos, pastas (sem recursão) ou padrões glob de entrada |
-| `-o`, `--output` | Não | Arquivo de saída (entrada única que é arquivo) ou pasta de saída (pasta, glob ou várias entradas) |
+| `-o`, `--output` | Não | Arquivo de saída (entrada única que é arquivo) ou pasta de saída (pasta, glob ou várias entradas). Com entrada única, uma pasta existente ou um caminho terminado em `/` também é tratado como pasta e gera `<pasta>/<nome>.md` |
 | `--stdout` | Não | Imprime o resultado na saída padrão. Não combina com várias entradas, `-o` ou `--images` |
 | `--force` | Não | Reconverte mesmo se a saída estiver atualizada |
 | `--ocr` | Não | Ativa OCR para PDFs escaneados |
 | `--ocr-lang` | Não | Idiomas do OCR separados por vírgula (ex.: `pt,en`) |
-| `--images` | Não | Extrai as imagens do PDF para a pasta `<nome>_images` ao lado da saída |
+| `--images` | Não | Extrai as imagens do PDF para a pasta `<nome>_images` ao lado da saída. Com `--format json`, as imagens ficam embutidas no próprio arquivo e a pasta não é criada |
 | `--formulas` | Não | Enriquece fórmulas. Baixa um modelo extra na primeira execução |
 | `--code` | Não | Enriquece blocos de código. Baixa um modelo extra na primeira execução |
 | `--format` | Não | `markdown` (padrão), `json` ou `html` |
@@ -56,13 +56,17 @@ Observações:
 - `--format json` e `--format html` funcionam apenas para PDFs. Em outros formatos o arquivo falha, pois o MarkItDown só gera Markdown.
 - `--ocr`, `--ocr-lang`, `--images`, `--formulas` e `--code` não têm efeito em arquivos que não são PDF.
 - `--ocr-lang` depende do motor de OCR e não foi validado em escaneamentos reais.
-- Saídas com data igual ou mais recente que a entrada são puladas. Use `--force` para refazer.
+- Saídas com data igual ou mais recente que a entrada são puladas, mesmo que as opções tenham mudado. Quando isso acontece, o resumo mostra `Use --force para reconverter ou aplicar novas opções.`
+- Nomes que existem no disco são usados literalmente, mesmo com `[`, `?` ou `*`. Só viram padrão glob quando não existe arquivo ou pasta com esse nome.
+- Ao expandir pastas e globs, arquivos `.html` e `.htm` com um `.pdf` de mesmo nome ao lado são ignorados, pois costumam ser saídas de `--format html`. Caminhos explícitos são mantidos.
+- Uma saída que coincide com qualquer entrada do lote falha, e o arquivo original não é alterado.
+- Quando o Docling conclui só parte do PDF, o arquivo é gravado com o aviso `Conversão parcial: algumas páginas podem ter falhado.`
 - Códigos de saída: `0` sem falhas, `1` com alguma falha ou sem entradas, `2` erro de uso.
 
 ## Mudanças de comportamento
 
 - Sem `-o`, a saída não vai mais para o terminal. Ela é gravada em arquivo ao lado da entrada. Use `--stdout` para o comportamento antigo.
-- O OCR agora vem desligado por padrão. Um PDF sem texto extraído gera um aviso sugerindo `--ocr`.
+- O OCR agora vem desligado por padrão. Um PDF sem texto extraído gera um aviso sugerindo `--ocr --force`.
 
 ## Converter vários arquivos
 
