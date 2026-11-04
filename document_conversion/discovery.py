@@ -9,6 +9,8 @@ OUTPUT_SUFFIXES = {"markdown": ".md", "json": ".json", "html": ".html"}
 
 GLOB_CHARACTERS = ("*", "?", "[")
 
+HTML_EXTENSIONS = frozenset({".html", ".htm"})
+
 
 class InputNotFoundError(Exception):
     pass
@@ -18,25 +20,35 @@ def _has_glob(raw: str) -> bool:
     return any(character in raw for character in GLOB_CHARACTERS)
 
 
-def _list_directory(directory: Path) -> list[Path]:
-    return sorted(
-        entry
-        for entry in directory.iterdir()
-        if entry.is_file() and entry.suffix.lower() in SUPPORTED_EXTENSIONS
+def _has_pdf_sibling(path: Path) -> bool:
+    return any(
+        sibling.stem == path.stem and sibling.suffix.lower() == ".pdf"
+        for sibling in path.parent.iterdir()
     )
 
 
+def _is_discoverable(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    if not path.is_file() or suffix not in SUPPORTED_EXTENSIONS:
+        return False
+    return suffix not in HTML_EXTENSIONS or not _has_pdf_sibling(path)
+
+
+def _list_directory(directory: Path) -> list[Path]:
+    return sorted(entry for entry in directory.iterdir() if _is_discoverable(entry))
+
+
 def _expand(raw: str) -> list[Path]:
-    if _has_glob(raw):
+    path = Path(raw)
+    if not path.exists() and _has_glob(raw):
         matches = [Path(match) for match in sorted(glob.glob(raw))]
         expanded = []
         for match in matches:
             if match.is_dir():
                 expanded.extend(_list_directory(match))
-            elif match.is_file() and match.suffix.lower() in SUPPORTED_EXTENSIONS:
+            elif _is_discoverable(match):
                 expanded.append(match)
         return expanded
-    path = Path(raw)
     if path.is_dir():
         return _list_directory(path)
     if path.is_file():
@@ -61,7 +73,10 @@ def is_batch_request(raw_inputs: list[str]) -> bool:
     if len(raw_inputs) != 1:
         return True
     raw = raw_inputs[0]
-    return _has_glob(raw) or Path(raw).is_dir()
+    path = Path(raw)
+    if path.exists():
+        return path.is_dir()
+    return _has_glob(raw)
 
 
 def resolve_output(

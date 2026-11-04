@@ -68,3 +68,52 @@ def test_glob_ignores_unsupported_extensions(tmp_path):
     touch(tmp_path / "a.md")
     names = [p.name for p in collect_inputs([str(tmp_path / "*")])]
     assert names == ["a.pdf"]
+
+
+def test_literal_name_with_brackets_is_not_a_glob(tmp_path):
+    source = touch(tmp_path / "r [final].pdf")
+    touch(tmp_path / "r f.pdf")
+    assert collect_inputs([str(source)]) == [source]
+    assert is_batch_request([str(source)]) is False
+
+
+def test_literal_folder_with_brackets_is_listed(tmp_path):
+    folder = tmp_path / "p [x]"
+    folder.mkdir()
+    source = touch(folder / "a.pdf")
+    assert collect_inputs([str(folder)]) == [source]
+    assert is_batch_request([str(folder)]) is True
+
+
+def test_uppercase_extension_is_listed(tmp_path):
+    source = touch(tmp_path / "A.PDF")
+    assert collect_inputs([str(tmp_path)]) == [source]
+
+
+def test_glob_without_match_returns_empty(tmp_path):
+    assert collect_inputs([str(tmp_path / "*.pdf")]) == []
+
+
+@pytest.mark.parametrize("page", ["a.html", "a.htm", "a.HTML"])
+def test_directory_drops_html_with_pdf_sibling(tmp_path, page):
+    source = touch(tmp_path / "a.pdf")
+    touch(tmp_path / page)
+    assert collect_inputs([str(tmp_path)]) == [source]
+
+
+def test_directory_keeps_html_without_pdf_sibling(tmp_path):
+    touch(tmp_path / "a.pdf")
+    page = touch(tmp_path / "b.html")
+    assert page in collect_inputs([str(tmp_path)])
+
+
+def test_glob_drops_html_with_pdf_sibling(tmp_path):
+    touch(tmp_path / "a.PDF")
+    touch(tmp_path / "a.html")
+    assert collect_inputs([str(tmp_path / "*.html")]) == []
+
+
+def test_explicit_html_with_pdf_sibling_is_kept(tmp_path):
+    touch(tmp_path / "a.pdf")
+    page = touch(tmp_path / "a.html")
+    assert collect_inputs([str(page)]) == [page]
