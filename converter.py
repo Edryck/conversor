@@ -3,41 +3,99 @@ import sys
 import tempfile
 from pathlib import Path
 
+from document_conversion.batch import run_batch
+from document_conversion.discovery import (
+    InputNotFoundError,
+    collect_inputs,
+    is_batch_request,
+)
 from document_conversion.engines import build_converter
 from document_conversion.options import ConversionOptions
 
 
-def main():
+def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Converte PDFs (com colunas duplas) e outros formatos para Markdown."
     )
-    parser.add_argument("input", help="Arquivo de entrada")
-    parser.add_argument("-o", "--output", help="Arquivo Markdown de saída")
-    args = parser.parse_args()
+    parser.add_argument(
+        "inputs", nargs="+", help="Arquivos, pastas ou padrões glob de entrada"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Arquivo de saída (entrada única) ou pasta de saída (lote)",
+    )
+    parser.add_argument(
+        "--stdout", action="store_true", help="Imprime o resultado na saída padrão"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Reconverte mesmo se a saída estiver atualizada"
+    )
+    args = parser.parse_args(argv)
+    if args.stdout and is_batch_request(args.inputs):
+        parser.error("--stdout não pode ser usado com várias entradas")
+    if args.stdout and args.output:
+        parser.error("--stdout não pode ser usado com -o/--output")
+    return args
 
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Erro: {input_path} não encontrado", file=sys.stderr)
-        sys.exit(1)
 
-    convert = build_converter(ConversionOptions())
+def build_options(args: argparse.Namespace) -> ConversionOptions:
+    return ConversionOptions()
+
+
+def print_summary(results) -> None:
+    converted = sum(1 for result in results if result.status == "converted")
+    skipped = sum(1 for result in results if result.status == "skipped")
+    failed = [result for result in results if result.status == "failed"]
+    print(
+        f"Convertidos: {converted} | Pulados: {skipped} | Falhas: {len(failed)}",
+        file=sys.stderr,
+    )
+    for result in failed:
+        print(f"Falha: {result.input_path}: {result.message}", file=sys.stderr)
+    for result in results:
+        if result.status == "converted" and result.message:
+            print(f"Aviso: {result.input_path}: {result.message}", file=sys.stderr)
+
+
+def run_stdout(inputs: list[Path], convert) -> int:
+    with tempfile.TemporaryDirectory() as directory:
+        temporary_output = Path(directory) / "output.md"
+        try:
+            warning = convert(inputs[0], temporary_output)
+        except Exception as error:
+            print(f"Falha: {inputs[0]}: {error}", file=sys.stderr)
+            return 1
+        if warning:
+            print(f"Aviso: {inputs[0]}: {warning}", file=sys.stderr)
+        print(temporary_output.read_text(encoding="utf-8"))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    batch = is_batch_request(args.inputs)
     try:
-        if args.output:
-            warning = convert(input_path, Path(args.output))
-            if warning:
-                print(warning, file=sys.stderr)
-            print(f"Salvo em: {args.output}")
-        else:
-            with tempfile.TemporaryDirectory() as directory:
-                temporary_output = Path(directory) / "output.md"
-                warning = convert(input_path, temporary_output)
-                if warning:
-                    print(warning, file=sys.stderr)
-                print(temporary_output.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"Erro na conversão: {e}", file=sys.stderr)
-        sys.exit(1)
+        inputs = collect_inputs(args.inputs)
+    except InputNotFoundError as error:
+        print(f"Erro: {error}", file=sys.stderr)
+        return 1
+    if not inputs:
+        print("Erro: nenhum arquivo suportado encontrado", file=sys.stderr)
+        return 1
+
+    options = build_options(args)
+    convert = build_converter(options)
+    if args.stdout:
+        return run_stdout(inputs, convert)
+
+    output_arg = Path(args.output) if args.output else None
+    results = run_batch(
+        inputs, convert, output_arg, batch, options.output_format, args.force
+    )
+    print_summary(results)
+    return 1 if any(result.status == "failed" for result in results) else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
