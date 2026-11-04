@@ -33,6 +33,19 @@ def empty_text_warning(text_count: int, options: ConversionOptions) -> str | Non
     return None
 
 
+def save_markdown(document, output_path: Path, options: ConversionOptions) -> None:
+    if not options.images:
+        document.save_as_markdown(output_path)
+        return
+    from docling_core.types.doc import ImageRefMode
+
+    document.save_as_markdown(
+        output_path,
+        artifacts_dir=Path(image_artifacts_dir(output_path).name),
+        image_mode=ImageRefMode.REFERENCED,
+    )
+
+
 def create_document_converter(options: ConversionOptions):
     from docling.datamodel.base_models import InputFormat
     from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -56,16 +69,7 @@ def build_converter(
             if "docling" not in state:
                 state["docling"] = create_document_converter(options)
             result = state["docling"].convert(str(input_path))
-            if options.images:
-                from docling_core.types.doc import ImageRefMode
-
-                result.document.save_as_markdown(
-                    output_path,
-                    artifacts_dir=image_artifacts_dir(output_path),
-                    image_mode=ImageRefMode.REFERENCED,
-                )
-            else:
-                result.document.save_as_markdown(output_path)
+            save_markdown(result.document, output_path, options)
             return empty_text_warning(len(result.document.texts), options)
         if "markitdown" not in state:
             from markitdown import MarkItDown

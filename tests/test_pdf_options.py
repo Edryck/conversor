@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from unittest.mock import MagicMock
+
 import pytest
 
 import converter
@@ -7,6 +9,7 @@ from document_conversion.engines import (
     build_pdf_pipeline_options,
     empty_text_warning,
     image_artifacts_dir,
+    save_markdown,
 )
 from document_conversion.options import ConversionOptions
 
@@ -58,3 +61,15 @@ def test_enrichment_flags_reach_pipeline():
     pipeline = build_pdf_pipeline_options(converter.build_options(args))
     assert pipeline.do_formula_enrichment is True
     assert pipeline.do_code_enrichment is True
+
+
+def test_save_markdown_anchors_artifacts_dir_to_output():
+    document = MagicMock()
+    save_markdown(document, Path("docs/sub/.a.tmp.md"), ConversionOptions(images=True))
+    assert document.save_as_markdown.call_args.kwargs["artifacts_dir"] == Path("a_images")
+
+
+def test_save_markdown_without_images_has_no_artifacts_dir():
+    document = MagicMock()
+    save_markdown(document, Path("docs/a.md"), ConversionOptions())
+    document.save_as_markdown.assert_called_once_with(Path("docs/a.md"))
