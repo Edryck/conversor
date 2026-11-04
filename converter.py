@@ -5,6 +5,7 @@ from pathlib import Path
 
 from document_conversion.batch import run_batch
 from document_conversion.discovery import (
+    OUTPUT_SUFFIXES,
     InputNotFoundError,
     collect_inputs,
     is_batch_request,
@@ -53,6 +54,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Enriquece blocos de código (baixa um modelo extra na primeira execução)",
     )
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["markdown", "json", "html"],
+        default="markdown",
+        help="Formato de saída (json e html apenas para PDFs)",
+    )
     args = parser.parse_args(argv)
     if args.stdout and is_batch_request(args.inputs):
         parser.error("--stdout não pode ser usado com várias entradas")
@@ -68,6 +76,7 @@ def build_options(args: argparse.Namespace) -> ConversionOptions:
         code.strip() for code in (args.ocr_lang or "").split(",") if code.strip()
     )
     return ConversionOptions(
+        output_format=args.output_format,
         ocr=args.ocr,
         ocr_languages=languages,
         images=args.images,
@@ -91,9 +100,9 @@ def print_summary(results) -> None:
             print(f"Aviso: {result.input_path}: {result.message}", file=sys.stderr)
 
 
-def run_stdout(inputs: list[Path], convert) -> int:
+def run_stdout(inputs: list[Path], convert, output_format: str) -> int:
     with tempfile.TemporaryDirectory() as directory:
-        temporary_output = Path(directory) / "output.md"
+        temporary_output = Path(directory) / f"output{OUTPUT_SUFFIXES[output_format]}"
         try:
             warning = convert(inputs[0], temporary_output)
         except Exception as error:
@@ -120,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     options = build_options(args)
     convert = build_converter(options)
     if args.stdout:
-        return run_stdout(inputs, convert)
+        return run_stdout(inputs, convert, options.output_format)
 
     output_arg = Path(args.output) if args.output else None
     results = run_batch(

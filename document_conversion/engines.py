@@ -33,16 +33,26 @@ def empty_text_warning(text_count: int, options: ConversionOptions) -> str | Non
     return None
 
 
-def save_markdown(document, output_path: Path, options: ConversionOptions) -> None:
+def save_document(document, output_path: Path, options: ConversionOptions) -> None:
+    if options.output_format == "json":
+        document.save_as_json(output_path, ensure_ascii=False)
+        return
+    save = (
+        document.save_as_html
+        if options.output_format == "html"
+        else document.save_as_markdown
+    )
+    extra = {"html_lang": "pt-BR"} if options.output_format == "html" else {}
     if not options.images:
-        document.save_as_markdown(output_path)
+        save(output_path, **extra)
         return
     from docling_core.types.doc import ImageRefMode
 
-    document.save_as_markdown(
+    save(
         output_path,
         artifacts_dir=Path(image_artifacts_dir(output_path).name),
         image_mode=ImageRefMode.REFERENCED,
+        **extra,
     )
 
 
@@ -69,8 +79,12 @@ def build_converter(
             if "docling" not in state:
                 state["docling"] = create_document_converter(options)
             result = state["docling"].convert(str(input_path))
-            save_markdown(result.document, output_path, options)
+            save_document(result.document, output_path, options)
             return empty_text_warning(len(result.document.texts), options)
+        if options.output_format != "markdown":
+            raise ValueError(
+                f"O formato {options.output_format} só está disponível para PDFs"
+            )
         if "markitdown" not in state:
             from markitdown import MarkItDown
 

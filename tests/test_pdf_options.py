@@ -9,7 +9,7 @@ from document_conversion.engines import (
     build_pdf_pipeline_options,
     empty_text_warning,
     image_artifacts_dir,
-    save_markdown,
+    save_document,
 )
 from document_conversion.options import ConversionOptions
 
@@ -63,13 +63,31 @@ def test_enrichment_flags_reach_pipeline():
     assert pipeline.do_code_enrichment is True
 
 
-def test_save_markdown_anchors_artifacts_dir_to_output():
+def test_save_document_anchors_artifacts_dir_to_output():
     document = MagicMock()
-    save_markdown(document, Path("docs/sub/.a.tmp.md"), ConversionOptions(images=True))
+    save_document(document, Path("docs/sub/.a.tmp.md"), ConversionOptions(images=True))
     assert document.save_as_markdown.call_args.kwargs["artifacts_dir"] == Path("a_images")
 
 
-def test_save_markdown_without_images_has_no_artifacts_dir():
+def test_save_document_without_images_has_no_artifacts_dir():
     document = MagicMock()
-    save_markdown(document, Path("docs/a.md"), ConversionOptions())
+    save_document(document, Path("docs/a.md"), ConversionOptions())
     document.save_as_markdown.assert_called_once_with(Path("docs/a.md"))
+
+
+def test_save_document_html_anchors_artifacts_dir_to_output():
+    document = MagicMock()
+    save_document(
+        document,
+        Path("docs/sub/.a.tmp.html"),
+        ConversionOptions(output_format="html", images=True),
+    )
+    kwargs = document.save_as_html.call_args.kwargs
+    assert kwargs["artifacts_dir"] == Path("a_images")
+    assert kwargs["html_lang"] == "pt-BR"
+
+
+def test_save_document_json_keeps_unicode():
+    document = MagicMock()
+    save_document(document, Path("a.json"), ConversionOptions(output_format="json", images=True))
+    document.save_as_json.assert_called_once_with(Path("a.json"), ensure_ascii=False)

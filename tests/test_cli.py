@@ -69,3 +69,27 @@ def test_summary_goes_to_stderr(source, capsys):
     captured = capsys.readouterr()
     assert "Convertidos: 1" in captured.err
     assert captured.out == ""
+
+
+def test_format_changes_default_suffix(source):
+    assert converter.main([str(source), "--format", "html"]) == 0
+    assert source.with_suffix(".html").exists()
+
+
+def test_stdout_uses_format_suffix(tmp_path, monkeypatch, capsys):
+    seen = []
+
+    def recording_build(options):
+        def convert(source, target):
+            seen.append(target.suffix)
+            target.write_text("<p>ok</p>", encoding="utf-8")
+            return None
+
+        return convert
+
+    monkeypatch.setattr(converter, "build_converter", recording_build)
+    path = tmp_path / "a.pdf"
+    path.write_text("x", encoding="utf-8")
+    assert converter.main([str(path), "--format", "html", "--stdout"]) == 0
+    assert seen == [".html"]
+    assert "<p>ok</p>" in capsys.readouterr().out
