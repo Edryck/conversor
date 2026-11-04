@@ -1,4 +1,6 @@
 import os
+
+from document_conversion import batch
 from document_conversion.batch import run_batch
 
 
@@ -70,3 +72,57 @@ def test_warning_is_kept_in_message(tmp_path):
         return "aviso"
 
     assert run([source], convert)[0].message == "aviso"
+
+
+def test_output_matching_other_input_keeps_original(tmp_path):
+    page = tmp_path / "a.html"
+    page.write_text("original", encoding="utf-8")
+    source = make(tmp_path, "a.pdf")
+    results = run_batch([source, page], write_ok, None, True, "html", True)
+    assert [r.status for r in results] == ["failed", "failed"]
+    assert page.read_text(encoding="utf-8") == "original"
+
+
+def test_output_matching_later_input_fails_whichever_owns_it(tmp_path):
+    page = tmp_path / "a.html"
+    page.write_text("original", encoding="utf-8")
+    source = make(tmp_path, "a.pdf")
+    results = run_batch([page, source], write_ok, None, True, "html", True)
+    assert [r.status for r in results] == ["failed", "failed"]
+    assert page.read_text(encoding="utf-8") == "original"
+
+
+def test_up_to_date_error_fails_only_that_file(tmp_path, monkeypatch):
+    bad, good = make(tmp_path, "bad.pdf"), make(tmp_path, "good.pdf")
+    original = batch.is_up_to_date
+    converted = []
+
+    def flaky(input_path, output_path):
+        if input_path == bad:
+            raise OSError("sem acesso")
+        return original(input_path, output_path)
+
+    def convert(source, target):
+        converted.append(source)
+        write_ok(source, target)
+
+    monkeypatch.setattr(batch, "is_up_to_date", flaky)
+    results = run([bad, good], convert)
+    assert [r.status for r in results] == ["failed", "converted"]
+    assert "sem acesso" in results[0].message
+    assert converted == [good]
+
+
+def test_resolve_output_error_fails_only_that_file(tmp_path, monkeypatch):
+    bad, good = make(tmp_path, "bad.pdf"), make(tmp_path, "good.pdf")
+    original = batch.resolve_output
+
+    def flaky(input_path, output_arg, is_batch, output_format):
+        if input_path == bad:
+            raise ValueError("saída inválida")
+        return original(input_path, output_arg, is_batch, output_format)
+
+    monkeypatch.setattr(batch, "resolve_output", flaky)
+    results = run([bad, good])
+    assert [r.status for r in results] == ["failed", "converted"]
+    assert results[0].output_path is None

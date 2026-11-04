@@ -12,7 +12,7 @@ from document_conversion.discovery import is_up_to_date, resolve_output
 @dataclass
 class FileResult:
     input_path: Path
-    output_path: Path
+    output_path: Path | None
     status: str
     message: str = ""
 
@@ -23,28 +23,34 @@ def _temporary_path(output_path: Path) -> Path:
 
 def _process(
     input_path: Path,
-    output_path: Path,
+    output_arg: Path | None,
+    batch: bool,
+    output_format: str,
     convert: Callable[[Path, Path], str | None],
     force: bool,
+    input_keys: set,
     used: set,
 ) -> FileResult:
-    key = output_path.resolve()
-    if key == input_path.resolve():
-        return FileResult(
-            input_path, output_path, "failed", "A saída coincide com a entrada."
-        )
-    if key in used:
-        return FileResult(
-            input_path,
-            output_path,
-            "failed",
-            "Outro arquivo do lote já gera esta mesma saída.",
-        )
-    used.add(key)
-    if not force and is_up_to_date(input_path, output_path):
-        return FileResult(input_path, output_path, "skipped")
-    temporary = _temporary_path(output_path)
+    output_path = None
+    temporary = None
     try:
+        output_path = resolve_output(input_path, output_arg, batch, output_format)
+        key = output_path.resolve()
+        if key in input_keys:
+            return FileResult(
+                input_path, output_path, "failed", "A saída coincide com uma entrada."
+            )
+        if key in used:
+            return FileResult(
+                input_path,
+                output_path,
+                "failed",
+                "Outro arquivo do lote já gera esta mesma saída.",
+            )
+        used.add(key)
+        if not force and is_up_to_date(input_path, output_path):
+            return FileResult(input_path, output_path, "skipped")
+        temporary = _temporary_path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         warning = convert(input_path, temporary)
         os.replace(temporary, output_path)
@@ -52,7 +58,8 @@ def _process(
     except Exception as error:
         return FileResult(input_path, output_path, "failed", str(error))
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def run_batch(
@@ -63,9 +70,18 @@ def run_batch(
     output_format: str,
     force: bool,
 ) -> list[FileResult]:
-    results = []
+    input_keys = {input_path.resolve() for input_path in inputs}
     used = set()
-    for input_path in tqdm(inputs, disable=len(inputs) < 2, file=sys.stderr):
-        output_path = resolve_output(input_path, output_arg, batch, output_format)
-        results.append(_process(input_path, output_path, convert, force, used))
-    return results
+    return [
+        _process(
+            input_path,
+            output_arg,
+            batch,
+            output_format,
+            convert,
+            force,
+            input_keys,
+            used,
+        )
+        for input_path in tqdm(inputs, disable=len(inputs) < 2, file=sys.stderr)
+    ]
