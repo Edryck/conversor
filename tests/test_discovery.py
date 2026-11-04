@@ -61,3 +61,10 @@ def test_up_to_date_uses_mtime(tmp_path):
     assert is_up_to_date(source, target) is True
     os.utime(source, (200, 200))
     assert is_up_to_date(source, target) is False
+
+
+def test_glob_ignores_unsupported_extensions(tmp_path):
+    touch(tmp_path / "a.pdf")
+    touch(tmp_path / "a.md")
+    names = [p.name for p in collect_inputs([str(tmp_path / "*")])]
+    assert names == ["a.pdf"]

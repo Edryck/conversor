@@ -33,7 +33,7 @@ def _expand(raw: str) -> list[Path]:
         for match in matches:
             if match.is_dir():
                 expanded.extend(_list_directory(match))
-            elif match.is_file():
+            elif match.is_file() and match.suffix.lower() in SUPPORTED_EXTENSIONS:
                 expanded.append(match)
         return expanded
     path = Path(raw)
